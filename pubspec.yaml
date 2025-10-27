@@ -15,6 +15,7 @@ dependencies:
   flutter_riverpod: ^3.0.3
   intl: ^0.20.2
   stylish_bottom_bar: ^1.1.1
+  flutter_local_notifications: ^19.5.0
 
 dev_dependencies:
   flutter_test:

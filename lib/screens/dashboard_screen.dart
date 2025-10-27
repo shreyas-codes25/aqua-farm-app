@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:smartaquaapp/providers/history_provider.dart';
@@ -22,6 +23,29 @@ class DashboardScreen extends ConsumerStatefulWidget {
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   int _selectedIndex = 0;
+
+  Future<void> _showSystemNotification(int unackCount) async {
+    const AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+          'alerts_channel_id',
+          'Alerts',
+          channelDescription: 'Notifications for unacknowledged alerts',
+          importance: Importance.max,
+          priority: Priority.high,
+          playSound: true,
+        );
+
+    const NotificationDetails notificationDetails = NotificationDetails(
+      android: androidDetails,
+    );
+
+    await FlutterLocalNotificationsPlugin().show(
+      0,
+      'Smart Aqua Alert',
+      'You have $unackCount unacknowledged alerts!',
+      notificationDetails,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,10 +74,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final unackCount = alerts.where((a) => !a.acknowledged).length;
 
     return StylishBottomBar(
-      option: BubbleBarOptions(
-        barStyle: BubbleBarStyle.vertical,
-
-      ),
+      option: BubbleBarOptions(barStyle: BubbleBarStyle.vertical),
 
       items: [
         BottomBarItem(
@@ -82,15 +103,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(3),
                     decoration: const BoxDecoration(
-                        color: Colors.red, shape: BoxShape.circle),
-                    constraints:
-                    const BoxConstraints(minWidth: 18, minHeight: 18),
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 18,
+                      minHeight: 18,
+                    ),
                     child: Text(
                       '$unackCount',
                       style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold),
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -128,7 +154,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   /// 🏠 Dashboard Main View
   Widget _buildDashboard(
-      BuildContext context, WidgetRef ref, AsyncValue sensor, bool connectivity) {
+    BuildContext context,
+    WidgetRef ref,
+    AsyncValue sensor,
+    bool connectivity,
+  ) {
     final width = MediaQuery.of(context).size.width;
     final height = MediaQuery.of(context).size.height;
 
@@ -138,7 +168,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.data_array_sharp),
-            onPressed: () => ref.read(alertsProvider.notifier).addDummyAlerts(3),
+            onPressed: () async {
+              // Add dummy alerts
+              ref.read(alertsProvider.notifier).addDummyAlerts(3);
+
+              // Count unacknowledged alerts
+              final alerts = ref.read(alertsProvider);
+              final unackCount = alerts.where((a) => !a.acknowledged).length;
+
+              // Show system notification
+              await _showSystemNotification(unackCount);
+            },
+
           ),
         ],
       ),
@@ -151,8 +192,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             Expanded(
               child: sensor.when(
                 data: (r) => _buildSensorCards(context, ref, r, width, height),
-                loading: () =>
-                const Center(child: CircularProgressIndicator()),
+                loading: () => const Center(child: CircularProgressIndicator()),
                 error: (e, _) => Center(child: Text('Error: $e')),
               ),
             ),
@@ -163,7 +203,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget _buildHeader(
-      BuildContext context, WidgetRef ref, bool connectivity, double width) {
+    BuildContext context,
+    WidgetRef ref,
+    bool connectivity,
+    double width,
+  ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -185,9 +229,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
               SizedBox(width: width * 0.02),
               ElevatedButton(
-                onPressed: () =>
-                ref.read(connectivityProvider.notifier).state =
-                !connectivity,
+                onPressed: () => ref.read(connectivityProvider.notifier).state =
+                    !connectivity,
                 child: const Text('Toggle Offline'),
               ),
             ],
@@ -198,7 +241,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget _buildSensorCards(
-      BuildContext context, WidgetRef ref, dynamic reading, double width, double height) {
+    BuildContext context,
+    WidgetRef ref,
+    dynamic reading,
+    double width,
+    double height,
+  ) {
     final species = ref.watch(speciesProvider);
     final threshold = species.doThreshold;
 
@@ -224,44 +272,74 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget _sensorCard(
-      reading, threshold, doColor, WidgetRef ref, double width) =>
-      Card(
-        elevation: 6,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: EdgeInsets.all(width * 0.04),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    reading,
+    threshold,
+    doColor,
+    WidgetRef ref,
+    double width,
+  ) => Card(
+    elevation: 6,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    child: Padding(
+      padding: EdgeInsets.all(width * 0.04),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Live Sensor Readings',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: width * 0.04),
+          Wrap(
+            spacing: width * 0.03,
+            runSpacing: width * 0.03,
             children: [
-              const Text('Live Sensor Readings',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              SizedBox(height: width * 0.04),
-              Wrap(
-                spacing: width * 0.03,
-                runSpacing: width * 0.03,
-                children: [
-                  _sensorTile('Temperature', '${reading.temperature} °C',
-                      Icons.thermostat_outlined, Colors.orange, width),
-                  _sensorTile('pH', '${reading.ph}', Icons.science_outlined,
-                      Colors.blue, width),
-                  _sensorTile('DO', '${reading.doLevel} mg/L', Icons.air,
-                      doColor, width),
-                  _sensorTile('Turbidity', '${reading.turbidity} NTU',
-                      Icons.opacity, Colors.brown, width),
-                ],
+              _sensorTile(
+                'Temperature',
+                '${reading.temperature} °C',
+                Icons.thermostat_outlined,
+                Colors.orange,
+                width,
               ),
-              SizedBox(height: width * 0.04),
-              Text(
-                  'Species: ${ref.read(speciesProvider).label} (DO threshold: $threshold mg/L)',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w500, color: Colors.grey[800])),
-              Text(
-                  'Last updated: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(reading.time)}',
-                  style: TextStyle(color: Colors.grey[600])),
+              _sensorTile(
+                'pH',
+                '${reading.ph}',
+                Icons.science_outlined,
+                Colors.blue,
+                width,
+              ),
+              _sensorTile(
+                'DO',
+                '${reading.doLevel} mg/L',
+                Icons.air,
+                doColor,
+                width,
+              ),
+              _sensorTile(
+                'Turbidity',
+                '${reading.turbidity} NTU',
+                Icons.opacity,
+                Colors.brown,
+                width,
+              ),
             ],
           ),
-        ),
-      );
+          SizedBox(height: width * 0.04),
+          Text(
+            'Species: ${ref.read(speciesProvider).label} (DO threshold: $threshold mg/L)',
+            style: TextStyle(
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[800],
+            ),
+          ),
+          Text(
+            'Last updated: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(reading.time)}',
+            style: TextStyle(color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    ),
+  );
 
   Widget _summaryCard(reading, double width) => Card(
     elevation: 6,
@@ -271,20 +349,34 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Summary',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const Text(
+            'Summary',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
           SizedBox(height: width * 0.03),
           Wrap(
             spacing: width * 0.03,
             runSpacing: width * 0.03,
             children: [
-              _statTile('Temp', '${reading.temperature} °C',
-                  Icons.thermostat, width),
-              _statTile('DO', '${reading.doLevel} mg/L', Icons.water_drop,
-                  width),
+              _statTile(
+                'Temp',
+                '${reading.temperature} °C',
+                Icons.thermostat,
+                width,
+              ),
+              _statTile(
+                'DO',
+                '${reading.doLevel} mg/L',
+                Icons.water_drop,
+                width,
+              ),
               _statTile('pH', '${reading.ph}', Icons.science, width),
-              _statTile('Turbidity', '${reading.turbidity} NTU',
-                  Icons.opacity, width),
+              _statTile(
+                'Turbidity',
+                '${reading.turbidity} NTU',
+                Icons.opacity,
+                width,
+              ),
             ],
           ),
         ],
@@ -297,8 +389,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         width: width * 0.28,
         padding: EdgeInsets.all(width * 0.03),
         decoration: BoxDecoration(
-            color: Colors.teal.shade50,
-            borderRadius: BorderRadius.circular(12)),
+          color: Colors.teal.shade50,
+          borderRadius: BorderRadius.circular(12),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -311,34 +404,39 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       );
 
   Widget _sensorTile(
-      String title, String value, IconData icon, Color color, double width) =>
-      Container(
-        width: width * 0.35,
-        padding: EdgeInsets.all(width * 0.03),
-        decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade300)),
-        child: Row(
-          children: [
-            Container(
-              padding: EdgeInsets.all(width * 0.02),
-              decoration: BoxDecoration(
-                  color: color.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(8)),
-              child: Icon(icon, color: color),
-            ),
-            SizedBox(width: width * 0.03),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: TextStyle(color: Colors.grey[700])),
-                  Text(value,
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-          ],
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+    double width,
+  ) => Container(
+    width: width * 0.35,
+    padding: EdgeInsets.all(width * 0.03),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.grey.shade300),
+    ),
+    child: Row(
+      children: [
+        Container(
+          padding: EdgeInsets.all(width * 0.02),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color),
         ),
-      );
+        SizedBox(width: width * 0.03),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: TextStyle(color: Colors.grey[700])),
+              Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }
